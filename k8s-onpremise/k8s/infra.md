@@ -1,12 +1,3 @@
-# What we will achieve
-- ✅ 3 Master nodes for HA control plane
-- ✅ 2 Worker nodes for workload distribution
-- ✅ NFS server for persistent storage
-- ✅ HAProxy + Keepalived for production load balancing
-- ✅ Fully automated deployment with Ansible (comming soon)
-- ✅ SSL certificates and security hardening (comming soon)
-- ✅ Monitoring and log management (comming soon)
-
 # 🏗️ Architecture Overview
 ![alt text](HAPROXY.drawio-1.png)
 # 📋 Prerequisites and system Requirements

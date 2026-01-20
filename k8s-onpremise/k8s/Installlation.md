@@ -261,7 +261,30 @@ networking:
 
 kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
+authorization:
+  anonymous:
+    enabled: false
+  webhook:
+    enabled: true
+authorization:
+  mode: Webhook
+systemReserved:
+  cpu: 100m
+  memory: 100Mi
+kubeReserved:
+  cpu: 100m
+  memory: 100Mi
+evictionHard:
+  imagefs.available: "15%"
+  memory.available: "100Mi",
+  nodefs.available: "10%",
+  nodefs.inodesFree: "5%",
+  imagefs.inodesFree: "5%"
+maxPods: 250
+containerLogMaxSize: "10Mi",
+containerLogMaxFiles: 5,
 cgroupDriver: systemd
+
 
 EOF
 

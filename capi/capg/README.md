@@ -1,15 +1,15 @@
 ### Cluster API Architecture
 ![alt text](images/capi-architecture.drawio.png)
 
-### 1er step: GCP Configuration
+### Step 1: GCP Configuration
 #### On CGP Console
 1. Create gcp project named capg
 2. Enable Compute Engine API on your project "cagp" from gcp console
 3. Create an service account for api authentication named gcp-credentials
-4. Assigne les roles suivants au service account
+4. Assigne roles below to the service account
     - Administrateur d'instance Compute (v1)
     - Utilisateur compte de service
-5. Export the credential json file as gcp-credentials.json
+5. Export credential as json file, gcp-credentials.json
 
 #### Login gcloud
 ```
@@ -31,7 +31,7 @@ export IMAGE_ID="projects/${GCP_PROJECT_ID}/global/images/cluster-api-ubuntu-240
 ```
 
 #### Configured files in the image
-0. Packages installed: 
+1. Packages installed: 
     - socat, linux-tools-virtual
     - gnupg, ntp
     - chrony, apt-daily-upgrade.timer
@@ -47,38 +47,39 @@ export IMAGE_ID="projects/${GCP_PROJECT_ID}/global/images/cluster-api-ubuntu-240
     - python3-netifaces
     - ebtables
     - libnetfilter-cttimeout1
-1. ssh configuration
-2. Machine type: n1-standard-1
-3. Region us-central1-a
-4. Network configuration
+2. ssh configuration
+3. Machine type: n1-standard-1
+4. Region us-central1-a
+5. Network configuration
     - net.bridge.bridge-nf-call-iptables = 1
     - net.bridge.bridge-nf-call-ip6tables = 1
     - net.ipv4.ip_forward = 1
     - net.ipv6.conf.all.forwarding = 1
     - net.ipv6.conf.all.disable_ipv6 = 1
     - net.ipv4.tcp_congestion_control = 1
-5. Kernel configuration
+6. Kernel configuration
     - vm.overcommit_memory = 1
     - kernel.panic_on_oops = 1
     - fs.inotify.max_user_instances = 8192
     - fs.inotify.max_user_watches = 524288
-6. Install Containerd
-7. Install runc
-8. Install crictl
-9. Install kubernetes manifest
-10. Install kubeadm, kubelet, kubectl
-### 2nd step: Install the management cluster (minikube, kind)
+7. Install Containerd
+8. Install runc
+9. Install crictl
+10. Install kubernetes manifest
+11. Install kubeadm, kubelet, kubectl
+### Step 2: Install management cluster (minikube, kind)
 ```
 minikube start
 kubectl get node
 ```
-### 3 step: Install Cluster API Operator
+### Step 3: Install Cluster API Operator
+1. Download helm releases
 ```
 helm repo add capi-operator https://kubernetes-sigs.github.io/cluster-api-operator
 helm repo add jetstack https://charts.jetstack.io --force-update
 helm repo update
 ```
-1. Create secret for API authentication
+2. Create secret for API authentication
     - Export GCP Credentials as Env
     ```
     export CREDENTIALS_SECRET_NAME="gcp-credentials"
@@ -90,12 +91,12 @@ helm repo update
     kubectl create secret generic "${CREDENTIALS_SECRET_NAME}" --from-literal=GCP_B64ENCODED_CREDENTIALS="${GCP_B64ENCODED_CREDENTIALS}" --namespace "${CREDENTIALS_SECRET_NAMESPACE}"
     ```
 
-2. Install cert manager
+3. Install cert manager
 ```
 helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set installCRDs=true
 ```
 
-3. Install cluster API Operator
+4. Install cluster API Operator
 ```
 cat <<EOF > values.yaml
 infrastructure: 
@@ -115,7 +116,7 @@ EOF
 ```
 helm install capi-operator capi-operator/cluster-api-operator --create-namespace -n capi-operator-system  --wait --timeout 90s -f values.yaml
 ```
-### 4 step: Deployement 
+### Step 4: Deployement 
 ##### Deploy Cluster API resources
 1. Create VPC Network
 ```

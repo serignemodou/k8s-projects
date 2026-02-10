@@ -1,0 +1,92 @@
+#================================================================================================================================================================
+#### Configuration du bootstrap du cluster control plane avec kubeadm
+## https://github.com/kubernetes-sigs/cluster-api/blob/main/controlplane/kubeadm/config/crd/bases/controlplane.cluster.x-k8s.io_kubeadmcontrolplanetemplates.yaml 
+#================================================================================================================================================================
+
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlaneTemplate
+metadata:
+  name: capg-kubeadm-control-plane
+  namespace: capg-management-clusterclass
+spec:
+  template:
+    spec:
+      kubeadmConfigSpec:
+        clusterName: k8s-sdx-swap
+        controlPlaneEndpoint: "api.sdx.proxima.swap.io:6443"
+        format: cloud-config
+
+        preKubeadmCommands:
+          - hostnamectl set-hostname "${{ local_hostname }}"
+          - | 
+            echo "[preKubeadmCommands] Start /etc/hosts configuration !"
+            IPV4="{{ ds.meta_data["local_ipv4"] }}"
+            HOSTNAME="${{ local_hostname }}"
+            if ! grep -q "$HOSTNAME" /etc/hostnames
+              echo "[preKubeadmCommands] $IPV4 $HOSTNAME" >> /etc/hosts
+              echo "[preKubeadmCommands] Added $IPV4 $HOSTNAME to /etc/hosts done !"
+            else
+              echo "[preKubeadmCommands] $HOSTNAME already exist on /etc/hosts"
+            fi
+            echo "[preKubeadmCommands] End /etc/hosts configuration !"
+
+        clusterConfiguration:
+          apiServer:
+            extraArgs: 
+              cloud-provider: external
+              audit-log-path: "/var/log/kubernetes/audit/audit.log"
+              audit-log-maxage: "30"
+              audit-log-maxbackup: "3"
+              audit-log-maxsize: "100"
+            timeoutForControlPlane: 20m
+          controllerManager:
+            extraArgs:
+              cloud-provider: external
+              node-cidr-mask-size: "24"
+          etcd:
+            local:
+              dataDir: /var/lib/etcd
+            extraArgs:
+              listen-metrics-urls: "http://0.0.0.0::2379"
+
+        initConfiguration:
+          localAPIEndpoint:
+            advertiseAddress: "0.0.0.0"
+            bindPort: 6443
+          nodeRegistration:
+            criSocket: unix:///var/run/containerd/containerd.sock
+            kubeletExtraArgs:
+              cloud-provider: external
+              cgroup-driver: systemd
+            name: '{{ ds.meta_data["local_hostname"] }}'
+
+        joinConfiguration:
+          controlPlane:
+            localAPIEndpoint:
+              advertiseAddress: "0.0.0.0"
+              bindPort: 6443
+          nodeRegistration:
+            criSocket: unix:///var/run/containerd/containerd.sock
+            kubeletExtraArgs:
+              cloud-provider: external
+            name: '{{ ds.meta_data["local_hostname"] }}'
+
+        postKubeadmCommands:
+          - |
+            NODE_NAME=$(hostname)
+            echo "[postKubeadmCommands] Wait node added to the cluster"
+            until kubectl --kubeconfig /etc/kubernetes/admin.config get node $NODE_NAME >/dev/null 2>&1; do
+              echo "[postKubeadmCommands] wait for node added"
+              sleep 5
+            done
+
+            echo "[postKubeadmCommand] Waiting for node $NODE_NAME to become ready"
+            until kubectl --kubeconfig /etc/kubernetes/admin.conf get node $NODE_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
+              echo "[postKubeadmiCommands] Node not ready yet !"
+              sleep 5
+            done
+
+            echo "[postKubeadmCommands] Node is Ready. Removing taint if it exists..."
+            kubectl --kubeconfig /etc/kubernetes/admin.conf taint nodes $NODE_NAME node.cloudprovider.kubernetes.io/uninitialized:NoSchedule- || true
+            echo "[postKubeadmCommands] Completed taint removal process."
+

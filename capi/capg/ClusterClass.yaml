@@ -1,0 +1,68 @@
+#===============================================================================================================
+#### Configuration cluster classe 
+# https://github.com/kubernetes-sigs/cluster-api/blob/main/config/crd/bases/cluster.x-k8s.io_clusterclasses.yaml
+#===============================================================================================================
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+metadata:
+  name: clusterclass-v1.0.0
+  namespace: capg-management-clusterclass
+spec:
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+      kind: GCPClusterTemplate
+      name: capg-uderlying-infrastructure
+
+  controlPlane:
+    machineInfrastructure:
+      ref: 
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+        kind: GCPMachineTemplate
+        name: capg-machine-template-control-plan
+    ref:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      kind: KubeadmControlPlaneTemplate
+      name: capg-kubeadm-control-plane
+    namingStrategy:
+      template: "{{ .cluster.name }}-control-plane-{{ .random }}"
+    machineHealthCheck: 
+      maxUnhealthy: 100%
+      nodeStartupTimeout: 20m0s
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 5m0s
+        - type: Ready
+          status: "False"
+          timeout: 20m0s
+        - type: DiskPressure
+          status: "True"
+          timeout: 1m0s
+          
+  workers:
+    machineDeployments:
+      - class: "default-node"
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            kind: KubeadmConfigTemplate
+            name: capg-kubeadm-worker
+        infrastructure:
+          templateRef: 
+            apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+            kind: GCPMachineTemplate
+            name: capg-machine-template-worker
+        machineHealthCheck: 
+          maxUnhealthy: 100%
+          nodeStartupTimeout: 20m0s
+          unhealthyConditions:
+            - type: Ready
+              status: Unknown
+              timeout: 5m0s
+            - type: Ready
+              status: "False"
+              timeout: 20m0s
+            - type: DiskPressure
+              status: "True"
+              timeout: 1m0s

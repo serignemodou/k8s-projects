@@ -1,0 +1,27 @@
+#==========================================================================================================
+#### Configuration de réseau du cluster
+## https://github.com/kubernetes-sigs/cluster-api/blob/main/config/crd/bases/cluster.x-k8s.io_clusters.yaml
+#==========================================================================================================
+
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: sdxproximaswapmgt
+  namespace: capg-management-clusterclass
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: "172.24.122.0/17"
+    services:
+      cidrBlocks: "172.24.133.0/17"
+    serviceDomain: "service.local"
+    
+  topology:
+    class: clusterclass-v1.0.0 # Ref Cluster Class Object
+    classNamespace: capz-management-clusterclass
+    version: "1.34.3"
+    controlPlane:
+      replicas: 3
+    workers:
+      replicas: 2
+

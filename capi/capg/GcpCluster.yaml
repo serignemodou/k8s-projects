@@ -9,26 +9,19 @@ metadata:
 ---
 
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-kind: GCPClusterTemplate
+kind: GCPCluster
 metadata:
   name: capg-uderlying-infrastructure
   namespace: capg-management-clusterclass
 spec:
-  template:
-    spec:
-      credentialsRef:
-        name: gcp-credentials-v2
-        namespace: default
-      project: capg
+  project: capg-486910
+  region: us-central1
+  network:
+    name: vpc-capg
+    autoCreateSubnetworks: false
+    #hostProject: capg
+    subnets:
+    - name: snet-control-plan-worker
+      cidrBlock: "172.24.0.0/24"
       region: us-central1
-      network:
-        name: vpc-capg
-        autoCreateSubnetworks: false
-        hostProject: capg
-        subnets:
-          - name: snet-control-plan
-            cidrBlock: "172.24.0.0/24"
-            region: us-central1
-          - name: snet-worker
-            cidrBlock: "172.24.0.1/24"
 

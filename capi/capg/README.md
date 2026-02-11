@@ -2,7 +2,7 @@
 ![alt text](images/capi-architecture.drawio.png)
 
 ### Step 1: GCP Configuration
-#### On CGP Console
+#### On GCP Console
 1. Create gcp project named capg
 2. Enable Compute Engine API on your project "cagp" from gcp console
 3. Create an service account for api authentication named gcp-credentials
@@ -102,8 +102,7 @@ cat <<EOF > values.yaml
 infrastructure: 
   gcp: 
     enabled: true
-    secretName: gcp-credentials-v2
-    secretNamespace: default
+    version: "v1.11.0"
     manager:
       featureGates:
         ClusterTopology: true

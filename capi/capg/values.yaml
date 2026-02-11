@@ -1,0 +1,10 @@
+infrastructure: 
+  gcp: 
+    enabled: true
+    version: "v1.11.0"
+    manager:
+      featureGates:
+        ClusterTopology: true
+configSecret:
+  name: gcp-credentials
+  namespace: default

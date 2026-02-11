@@ -9,6 +9,8 @@
 4. Assigne roles below to the service account
     - Administrateur d'instance Compute (v1)
     - Utilisateur compte de service
+    - compute.networks.create
+    - compute.firewalls.create
 5. Export credential as json file, gcp-credentials.json
 
 #### Login gcloud

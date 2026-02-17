@@ -101,6 +101,21 @@ helm install cert-manager jetstack/cert-manager --namespace cert-manager --creat
 4. Install cluster API Operator
 ```
 cat <<EOF > values.yaml
+core:
+  cluster-api:
+    manager:
+      featureGates:
+        ClusterTopology: true
+bootstrap:
+  kubeadm:
+    manager:
+      featureGates:
+        ClusterTopology: true
+controlPlane:
+  kubeadm:
+    manager:
+      featureGates:
+        ClusterTopology: true
 infrastructure: 
   gcp: 
     enabled: true
@@ -119,29 +134,31 @@ helm install capi-operator capi-operator/cluster-api-operator --create-namespace
 ```
 ### Step 4: Deployement 
 ##### Deploy Cluster API resources
+0. Create namespace
+```
+kubectl create ns capg-management-clusterclass
+```
 1. Create VPC Network
 ```
-kubectl apply -f GcpClusterTemplate.yaml
+kubectl apply -f GcpCluster.yaml
 ```
 2. Create Gcp Virtual Machine (Control Plane and Worker node)
 ```
-kubectl apply -f GcpMachineTemplate-cp.yaml
-
-kubectl apply -f GcpMachineTemplate-worker.yaml
+kubectl apply -f Cluster.yaml
 ```
 3. Create Control Plane
 ```
-kubectl apply -f KubeadmControlPlanTemplate.yaml
+kubectl apply -f GcpMachineTemplate-cp.yaml
 ```
 4. Create Worker Node
 ```
-kubectl apply -f KubeadmConfigTemplate.yaml
+kubectl apply -f KubeadmControlPlan.yaml
 ```
-5. Deploy ClusterClass
+5. deploy Machine
 ```
-kubectl apply -f ClusterClass.yaml
+kubectl apply -f GcpMachineTemplate-worker.yaml
 ```
-6. Deploy Cluster Network
+6. Deploy kubeadm
 ```
-kubectl apply -f Cluster.yaml
+kubectl apply -f KubeadmConfig.yaml
 ```

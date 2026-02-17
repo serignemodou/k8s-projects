@@ -5,14 +5,16 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: GCPMachineTemplate
 metadata:
-  name: capg-machine-template-worker
+  name: capg-machine-worker
   namespace: capg-management-clusterclass
 spec:
-  image: projects/capg-486910/global/images/cluster-api-ubuntu-2404-v1-34-3-1770640807
-  imageFamily: capi-ubuntu-2404-k8s-v1-34
-  instanceType: n1-standard-1
-  provisioningModel: Standard
-  publicIP: false
-  rootDeviceSize: 30
-  rootDeviceType: "pd-standard"
-  subnet: "snet-control-plan-and-worker"
+  template:
+    spec:
+      image: projects/capg-486910/global/images/cluster-api-ubuntu-2404-v1-34-3-1771255214
+      imageFamily: capi-ubuntu-2404-k8s-v1-34
+      instanceType: n1-standard-1
+      provisioningModel: Standard
+      publicIP: true
+      rootDeviceSize: 30
+      rootDeviceType: "pd-standard"
+      subnet: "snet-control-plan-and-worker"

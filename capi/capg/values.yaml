@@ -1,3 +1,18 @@
+core:
+  cluster-api:
+    manager:
+      featureGates:
+        ClusterTopology: true
+bootstrap:
+  kubeadm:
+    manager:
+      featureGates:
+        ClusterTopology: true
+controlPlane:
+  kubeadm:
+    manager:
+      featureGates:
+        ClusterTopology: true
 infrastructure: 
   gcp: 
     enabled: true

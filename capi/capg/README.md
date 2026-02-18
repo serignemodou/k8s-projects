@@ -134,31 +134,118 @@ helm install capi-operator capi-operator/cluster-api-operator --create-namespace
 ```
 ### Step 4: Deployement 
 ##### Deploy Cluster API resources
-0. Create namespace
+### Create namespace
 ```
 kubectl create ns capg-management-clusterclass
 ```
-1. Create VPC Network
+### Create VPC Network
+1. Deploy resources
 ```
 kubectl apply -f GcpCluster.yaml
-```
-2. Create Gcp Virtual Machine (Control Plane and Worker node)
-```
 kubectl apply -f Cluster.yaml
 ```
-3. Create Control Plane
+2. Add Firewall rule to the created network to allow (SSH, RDP, HTTP, HTTPS, ICMP) inbound trafic
+```
+gcloud compute firewall-rules create capg-allow-rdp \
+    --action=ALLOW \
+    --direction=INGRESS \
+    --network=vpc-capg \
+    --priority=1000 \
+    --rules=tcp:3389 \
+    --source-ranges=0.0.0.0/0
+    --description=Allow RDP from anywhere
+    --priority=1000
+```
+
+```
+gcloud compute firewall-rules create capg-allow-ssh \
+    --action=ALLOW \
+    --direction=INGRESS \
+    --network=vpc-capg \
+    --priority=1000 \
+    --rules=tcp:22 \
+    --source-ranges=0.0.0.0/0
+    --description=Allow SSH from anywhere
+    --priority=1000
+```
+
+```
+gcloud compute firewall-rules create capg-allow-http-https \
+    --action=ALLOW \
+    --direction=INGRESS \
+    --network=vpc-capg \
+    --priority=1000 \
+    --rules=tcp:80,443 \
+    --source-ranges=0.0.0.0/0
+    --description=Allow HTTP, HTTPS from anywhere
+    --priority=1000
+```
+
+```
+gcloud compute firewall-rules create capg-allow-icmp \
+    --action=ALLOW \
+    --direction=INGRESS \
+    --network=vpc-capg \
+    --priority=1000 \
+    --rules=icmp \
+    --source-ranges=0.0.0.0/0
+    --description=Allow ICMP from anywhere
+    --priority=1000
+```
+### Create Gcp Virtual Machine (Control Plane)
+1. Deploy resource
 ```
 kubectl apply -f GcpMachineTemplate-cp.yaml
 ```
-4. Create Worker Node
+2. Copy the public IP address in the loadBalancer and set it in 
+```
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration:
+      controlPlaneEndpoint: "<PUBLIC_IP>:6443"
+
+```
+3. Boostrap the control plan
 ```
 kubectl apply -f KubeadmControlPlan.yaml
 ```
-5. deploy Machine
+
+##### Troubleshooting
+### Cloud init
+1. Check cloud init status
 ```
-kubectl apply -f GcpMachineTemplate-worker.yaml
+cloud-init status --long
 ```
-6. Deploy kubeadm
+2. Check cloud init logs
 ```
-kubectl apply -f KubeadmConfig.yaml
+cat /var/log/cloud-init-output.log
+grep kubeadm /var/log/cloud-init-output.log
+```
+3. Check the cloud init data store (ds)
+```
+cloud-init query -l
+cloud-init query ds.meta_data
+```
+### Pre Kubeadm Commands file
+1. Check the pre kubeadm script store
+```
+ls /var/lib/cloud/instance/scripts
+```
+### Check the system logs
+```
+cat /var/log/syslog
+```
+
+### Check the kubeadm config file store (use by kubeadm to bootstrap cluster , with kubeadm init)
+```
+cat /run/kubeadm/kubeadm/kubeadm.yaml
+```
+
+### Check kubelet file (only available when boostrap has successful)
+```
+ls /var/lib/kubelet
+```
+### Check kubernetes manifests files (only available when boostrap has successful)
+```
+ls /etc/kubernetes/manifests
 ```

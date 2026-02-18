@@ -20,13 +20,13 @@ spec:
     format: cloud-config
 
     preKubeadmCommands:
-      - hostnamectl set-hostname "${{ local_hostname }}"
+      - hostnamectl set-hostname "{{ v1.local_hostname }}"
       - | 
         echo "[preKubeadmCommands] Start /etc/hosts configuration !"
-        IPV4="{{ ds.meta_data["local_ipv4"] }}"
-        HOSTNAME="${{ local_hostname }}"
-        if ! grep -q "$HOSTNAME" /etc/hostnames
-          echo "[preKubeadmCommands] $IPV4 $HOSTNAME" >> /etc/hosts
+        IPV4=$(hostname -I | awk '{print $1}')
+        HOSTNAME="{{ v1.local_hostname }}"
+        if ! grep -q "$HOSTNAME" /etc/hosts; then
+          echo "$IPV4 $HOSTNAME" >> /etc/hosts
           echo "[preKubeadmCommands] Added $IPV4 $HOSTNAME to /etc/hosts done !"
         else
           echo "[preKubeadmCommands] $HOSTNAME already exist on /etc/hosts"
@@ -34,8 +34,8 @@ spec:
         echo "[preKubeadmCommands] End /etc/hosts configuration !"
 
     clusterConfiguration:
-      clusterName: k8s-sdx-swap
-      #controlPlaneEndpoint: "api.sdx.proxima.swap.io:6443"
+      clusterName: sdxproximaswapmgt
+      controlPlaneEndpoint: "34.102.158.215:6443"
       apiServer:
         extraArgs: 
           cloud-provider: external
@@ -47,7 +47,6 @@ spec:
       controllerManager:
         extraArgs:
           cloud-provider: external
-          node-cidr-mask-size: "24"
       etcd:
         local:
           dataDir: /var/lib/etcd
@@ -61,7 +60,9 @@ spec:
         kubeletExtraArgs:
           cloud-provider: external
           cgroup-driver: systemd
-        name: $HOSTNAME #'{{ ds.meta_data["local_hostname"] }}'
+        name: '{{ v1.local_hostname }}'
+      skipPhases:
+        - addon/kube-proxy
 
     joinConfiguration:
       controlPlane:
@@ -72,7 +73,7 @@ spec:
         criSocket: unix:///var/run/containerd/containerd.sock
         kubeletExtraArgs:
           cloud-provider: external
-        name: $HOSTNAME #'{{ ds.meta_data["local_hostname"] }}'
+        name: '{{ v1.local_hostname }}'
 
     postKubeadmCommands:
       - |

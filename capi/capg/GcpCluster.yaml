@@ -10,6 +10,9 @@ metadata:
 spec:
   project: capg-486910
   region: us-central1
+  #loadBalancer:
+    #apiServerInstanceGroupTagOverride:
+      #node: master
   network:
     name: vpc-capg
     autoCreateSubnetworks: false

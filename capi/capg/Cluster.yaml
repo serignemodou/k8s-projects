@@ -30,9 +30,5 @@ spec:
 #    version: "1.34.3"
 #    controlPlane:
 #      replicas: 3
-#    workers:
-#      machineDeployments:
-#      - class: worker
-#        name: worker
-#        replicas: 2
+
 

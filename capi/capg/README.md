@@ -249,3 +249,13 @@ ls /var/lib/kubelet
 ```
 ls /etc/kubernetes/manifests
 ```
+### Check Pod static when kubernetes is not reachable (on of the control plan component)
+1. Check the cloud-init log (component responsible to execute bootstrap kubeadm config)
+```
+cat /var/log/cloud-init-output.log
+```
+2. Check pod static state and logs
+```
+crictl --runtime-endpoint unix:///var/run/containerd/containerd.sock ps -a | grep kube | grep -v pause
+sudo crictl --runtime-endpoint unix:///var/run/containerd/containerd.sock logs <CONTAINER-ID> 
+```

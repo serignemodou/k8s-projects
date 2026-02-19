@@ -35,10 +35,9 @@ spec:
 
     clusterConfiguration:
       clusterName: sdxproximaswapmgt
-      controlPlaneEndpoint: "34.102.158.215:6443"
+      #controlPlaneEndpoint: "34.102.158.215:6443"
       apiServer:
         extraArgs: 
-          cloud-provider: external
           audit-log-path: "/var/log/kubernetes/audit/audit.log"
           audit-log-maxage: "30"
           audit-log-maxbackup: "3"
@@ -77,20 +76,25 @@ spec:
 
     postKubeadmCommands:
       - |
-        NODE_NAME=$(hostname)
+        echo "[postKubeadmCommands] Get kubeconfig"
+        mkdir -p $HOME/.kube
+        sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+        NODE_NAME={{ v1.local_hostname }}
         echo "[postKubeadmCommands] Wait node added to the cluster"
-        until kubectl --kubeconfig /etc/kubernetes/admin.config get node $NODE_NAME >/dev/null 2>&1; do
+        until kubectl get node $NODE_NAME >/dev/null 2>&1; do
           echo "[postKubeadmCommands] wait for node added"
           sleep 5
         done
 
         echo "[postKubeadmCommand] Waiting for node $NODE_NAME to become ready"
-        until kubectl --kubeconfig /etc/kubernetes/admin.conf get node $NODE_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
+        until kubectl get node $NODE_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
           echo "[postKubeadmiCommands] Node not ready yet !"
           sleep 5
         done
 
         echo "[postKubeadmCommands] Node is Ready. Removing taint if it exists..."
-        kubectl --kubeconfig /etc/kubernetes/admin.conf taint nodes $NODE_NAME node.cloudprovider.kubernetes.io/uninitialized:NoSchedule- || true
+        kubectl taint nodes $NODE_NAME node.cloudprovider.kubernetes.io/uninitialized:NoSchedule- || true
         echo "[postKubeadmCommands] Completed taint removal process."
 

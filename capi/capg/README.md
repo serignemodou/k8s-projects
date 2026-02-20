@@ -170,7 +170,7 @@ kubectl apply -f GcpMachineTemplate-cp.yaml
 kubectl apply -f KubeadmControlPlan.yaml
 ```
 
-#### Test
+#### Test Control Plan UP
 1. Check node
 ```
 kubectl get node --kubeconfig kubeconfig.config

@@ -173,16 +173,22 @@ kubectl apply -f KubeadmControlPlan.yaml
 #### Test
 1. Check node
 ```
-![alt text](images/kube-node.png)
+kubectl get node --kubeconfig kubeconfig.config
 ```
+![alt text](images/kube-node.png)
+
 2. Check pod system
 ```
-![alt text](images/kube-pod.png)
+kubectl get po -n kube-system  --kubeconfig kubeconfig.config
 ```
+![alt text](images/kube-pod.png)
+
 3. Check CAPI Machine
 ```
-![alt text](images/capi-machine.png)
+kubectl get Machine -n capg-management-clusterclass
 ```
+![alt text](images/capi-machine.png)
+
 
 
 ##### Troubleshooting

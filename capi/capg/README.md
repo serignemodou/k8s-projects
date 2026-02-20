@@ -1,6 +1,9 @@
 ### Cluster API Architecture
 ![alt text](images/capi-architecture.drawio.png)
 
+### Costume Kubernete Architecture
+![alt text](images/gcpk8s-architecture.drawio.png)
+
 ### Step 1: GCP Configuration
 #### On GCP Console
 1. Create gcp project named capg
@@ -145,70 +148,42 @@ kubectl apply -f GcpCluster.yaml
 kubectl apply -f Cluster.yaml
 ```
 2. Add Firewall rule to the created network to allow (SSH, RDP, HTTP, HTTPS, ICMP) inbound trafic
+Create it from portal
 ```
-gcloud compute firewall-rules create capg-allow-rdp \
+gcloud compute firewall-rules create capg-allow-k8s \
     --action=ALLOW \
     --direction=INGRESS \
     --network=vpc-capg \
     --priority=1000 \
-    --rules=tcp:3389 \
-    --source-ranges=0.0.0.0/0
-    --description=Allow RDP from anywhere
-    --priority=1000
-```
-
-```
-gcloud compute firewall-rules create capg-allow-ssh \
-    --action=ALLOW \
-    --direction=INGRESS \
-    --network=vpc-capg \
-    --priority=1000 \
-    --rules=tcp:22 \
-    --source-ranges=0.0.0.0/0
-    --description=Allow SSH from anywhere
-    --priority=1000
-```
-
-```
-gcloud compute firewall-rules create capg-allow-http-https \
-    --action=ALLOW \
-    --direction=INGRESS \
-    --network=vpc-capg \
-    --priority=1000 \
-    --rules=tcp:80,443 \
-    --source-ranges=0.0.0.0/0
-    --description=Allow HTTP, HTTPS from anywhere
-    --priority=1000
-```
-
-```
-gcloud compute firewall-rules create capg-allow-icmp \
-    --action=ALLOW \
-    --direction=INGRESS \
-    --network=vpc-capg \
-    --priority=1000 \
-    --rules=icmp \
-    --source-ranges=0.0.0.0/0
-    --description=Allow ICMP from anywhere
-    --priority=1000
+    --rules=tcp:3389,22,443,80,6443,10250,2379-2380 \
+    --source-ranges=0.0.0.0/0 \
+    --description="Allow SSH RDP from anywhere"
 ```
 ### Create Gcp Virtual Machine (Control Plane)
 1. Deploy resource
 ```
 kubectl apply -f GcpMachineTemplate-cp.yaml
 ```
-2. Copy the public IP address in the loadBalancer and set it in 
-```
-spec:
-  kubeadmConfigSpec:
-    clusterConfiguration:
-      controlPlaneEndpoint: "<PUBLIC_IP>:6443"
 
-```
 3. Boostrap the control plan
 ```
 kubectl apply -f KubeadmControlPlan.yaml
 ```
+
+#### Test
+1. Check node
+```
+![alt text](images/kube-node.png)
+```
+2. Check pod system
+```
+![alt text](images/kube-pod.png)
+```
+3. Check CAPI Machine
+```
+![alt text](images/capi-machine.png)
+```
+
 
 ##### Troubleshooting
 ### Cloud init

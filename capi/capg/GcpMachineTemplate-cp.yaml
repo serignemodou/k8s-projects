@@ -19,6 +19,3 @@ spec:
       rootDeviceSize: 30
       rootDeviceType: pd-standard
       subnet: snet-control-plan-worker
-      #additionalMetadata:
-        #- key: "enable-oslogin"
-          #value: "FALSE"

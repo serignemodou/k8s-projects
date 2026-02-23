@@ -1,0 +1,57 @@
+#===================================================================================================================================================
+#### Configuration du bootstrap du cluster worker node avec kubeadm
+## https://github.com/kubernetes-sigs/cluster-api/blob/main/bootstrap/kubeadm/config/crd/bases/bootstrap.cluster.x-k8s.io_kubeadmconfigtemplates.yaml 
+#====================================================================================================================================================
+
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: capg-kubeadm-template-worker
+  namespace: capg-management-clusterclass
+spec:
+  template:
+    spec:
+      preKubeadmCommands:
+        - hostnamectl set-hostname "{{ v1.local_hostname }}"
+        - | 
+          echo "[preKubeadmCommands] Start /etc/hosts configuration !"
+          IPV4=$(hostname -I | awk '{print $1}')
+          HOSTNAME="{{ v1.local_hostname }}"
+          if ! grep -q "$HOSTNAME" /etc/hosts; then
+            echo "$IPV4 $HOSTNAME" >> /etc/hosts
+            echo "[preKubeadmCommands] Added $IPV4 $HOSTNAME to /etc/hosts done !"
+          else
+            echo "[preKubeadmCommands] $HOSTNAME already exist on /etc/hosts"
+          fi
+          echo "[preKubeadmCommands] End /etc/hosts configuration !"
+
+      joinConfiguration:
+        nodeRegistration:
+          criSocket: unix:///var/run/containerd/containerd.sock
+          kubeletExtraArgs:
+            cloud-provider: external
+            container-log-max-files: "5"
+            container-log-max-size: "50Mi" 
+            cgroup-driver: systemd
+            max-pods: "110"
+            provider-id: gce://capg-486910/{{ v1.availability_zone }}/{{ v1.local_hostname }}
+          name: '{{ v1.local_hostname }}'
+              
+      postKubeadmCommands:
+        - |
+          NODE_NAME="{{ v1.local_hostname }}"
+          echo "[postKubeadmCommands] Wait node added to the cluster"
+          until sudo kubectl --kubeconfig /etc/kubernetes/admin.config get node $NODE_NAME >/dev/null 2>&1; do
+            echo "[postKubeadmCommands] wait for node added"
+            sleep 5
+          done
+
+          echo "[postKubeadmCommand] Waiting for node $NODE_NAME to become ready"
+          until sudo  kubectl --kubeconfig /etc/kubernetes/admin.conf get node $NODE_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
+            echo "[postKubeadmiCommands] Node not ready yet !"
+            sleep 5
+          done
+
+          echo "[postKubeadmCommands] Node is Ready. Removing taint if it exists..."
+          sudo kubectl --kubeconfig /etc/kubernetes/admin.conf taint nodes $NODE_NAME node.cloudprovider.kubernetes.io/uninitialized:NoSchedule- || true
+          echo "[postKubeadmCommands] Completed taint removal process."

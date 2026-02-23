@@ -94,7 +94,7 @@ spec:
         echo "[postKubeadmCommand] Install Cilium CNI"
         sudo helm repo add cilium https://helm.cilium.io/
         sudo helm repo update
-        sudo helm upgrade --install cilium cilium/cilium --version 1.18.5 --namespace kube-system --set k8sServiceHost=34.102.158.215 --set k8sServicePort=443 --set kubeProxyReplacement=true --set hubble.relay.enabled=true --set ipam.operator.clusterPoolIPv4PodCIDRList={"10.244.0.0/16"} --set ipam.operator.clusterPoolIPv4MaskSize=24 --kubeconfig /etc/kubernetes/admin.conf
+        sudo helm upgrade --install cilium cilium/cilium --version 1.18.5 --namespace kube-system --set k8sServiceHost=34.117.212.27 --set k8sServicePort=443 --set kubeProxyReplacement=true --set hubble.relay.enabled=true --set ipam.operator.clusterPoolIPv4PodCIDRList={"10.244.0.0/16"} --set ipam.operator.clusterPoolIPv4MaskSize=24 --kubeconfig /etc/kubernetes/admin.conf
 
         echo "[postKubeadmCommand] Waiting for node $HOSTNAME to become ready"
         until sudo kubectl get node $HOSTNAME --kubeconfig /etc/kubernetes/admin.conf -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do

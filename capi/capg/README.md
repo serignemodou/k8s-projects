@@ -16,14 +16,14 @@
     - compute.firewalls.create
 5. Export credential as json file, gcp-credentials.json
 
-#### Login gcloud
+#### Gcloud login
 ```
 gcloud auth login
 gloud projects list
 gcloud config set project capg
 ```
 
-#### Build OS images
+#### Build Custome OS Image
 ```
 export GCP_PROJECT_ID=capg-486910
 export GOOGLE_APPLICATION_CREDENTIALS=/Users/modoudiouf/modou-projects/k8s-projects/capi/capg/gcp-credentials.json
@@ -35,7 +35,7 @@ export IMAGE_ID="projects/${GCP_PROJECT_ID}/global/images/cluster-api-ubuntu-240
 
 ```
 
-#### Configured files in the image
+#### Packages created within the custom image
 1. Packages installed: 
     - socat, linux-tools-virtual
     - gnupg, ntp
@@ -72,6 +72,7 @@ export IMAGE_ID="projects/${GCP_PROJECT_ID}/global/images/cluster-api-ubuntu-240
 9. Install crictl
 10. Install kubernetes manifest
 11. Install kubeadm, kubelet, kubectl
+
 ### Step 2: Install management cluster (minikube, kind)
 ```
 minikube start
@@ -135,7 +136,7 @@ EOF
 ```
 helm install capi-operator capi-operator/cluster-api-operator --create-namespace -n capi-operator-system  --wait --timeout 90s -f values.yaml
 ```
-### Step 4: Deployement 
+### Step 4: Cluster API resources deployement 
 ##### Deploy Cluster API resources
 ### Create namespace
 ```
@@ -166,6 +167,7 @@ kubectl apply -f GcpMachineTemplate-cp.yaml
 ```
 
 3. Boostrap the control plan
+Important ⚠️: Avant de lancer la commande suivante, modifier la valaur de l'attribut --set k8sServiceHost avec l'IP public du service LoadBalancer GCP dans l'étape d'installation de Cilium via helm .
 ```
 kubectl apply -f KubeadmControlPlan.yaml
 ```
@@ -189,8 +191,34 @@ kubectl get Machine -n capg-management-clusterclass
 ```
 ![alt text](images/capi-machine.png)
 
+#### Worker
+1. Deploy CGP Machine worker node
+```
+kubectl apply -f GcpMachineTemplate-worker.yaml
+```
 
+2. Deploy KubeadmConfig for worker node
+```
+kubectl apply -f KubeadmConfigTemplate.yaml
+```
 
+3. Deploy MachineDeployment
+```
+kubectl apply -f MachineDeploymentWorker.yaml
+```
+
+#### Test Worker Node status
+1. Check node
+```
+kubectl get node --kubeconfig kubeconfig.config
+```
+![alt text](images/all-k8s-node.png)
+
+2. Check CAPI Machine
+```
+kubectl get Machine -n capg-management-clusterclass
+```
+![alt text](images/controlPlan-and-worker-machine.png)
 ##### Troubleshooting
 ### Cloud init
 1. Check cloud init status

@@ -1,0 +1,31 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: capg-machine-deployment-worker
+  namespace: capg-management-clusterclass
+spec:
+  clusterName: sdxproximaswapmgt
+  replicas: 2
+  selector:
+    matchExpressions:
+    - key: role
+      operator: In
+      values: 
+        - worker
+  template:
+    metadata:
+      labels:
+        role: worker
+    spec:
+      clusterName: sdxproximaswapmgt
+      version: v1.34.3
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: capg-kubeadm-template-worker
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: GCPMachineTemplate
+        name: capg-machine-template-worker
+      providerID: gce://capg-486910/{{ v1.availability_zone }}/{{ v1.local_hostname }}

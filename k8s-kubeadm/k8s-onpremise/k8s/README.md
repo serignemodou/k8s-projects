@@ -1,50 +1,128 @@
 # Deploy kubernetes cluster with kubeadm
-## Infrastructure
+## 🔧 Compute Charasteristic
 1. Compute
+| VM Name | VM IP | Roles | OS | CPU (vCPU) | RAM | Disk Storage | Openning Ports |
+|:-------- |:--------:| --------:| --------:| --------:| --------:| --------:|
+| master01 | 172.24.0.2  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
+| master02 | 172.24.0.3  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
+| master03 | 172.24.0.4  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
 
-| Server Name | VLAN (VLanId 106; CIDR 172.16.144.0/28) | Roles | OS |
-|:-------- |:--------:| --------:| --------:|
-| master01     | 172.16.144.34  | Control Plane  | Ubuntu22.04 |
-| master02     | 172.16.144.44  | Control Plane  | Ubuntu22.04 |
-| master03     | 172.16.144.54  | Control Plane  | Ubuntu22.04 |
-| worker01     | 172.16.144.66  | Worker Node    | Ubuntu22.04 |
-| worker02     | 172.16.144.76  | Worker Node    | Ubuntu22.04 |
-| worker03     | 172.16.144.86  | Worker Node    | Ubuntu22.04 |
+## 🏗️ Setup Infrastructure
+### Set up the network and subnets
+1. Create the custom mode VPC network
+```
+gcloud compute networks create vpc-k8s \
+  --subnet-mode=custom
+```
+2. create a subnet for backends
+```
+gcloud compute networks subnets create snet-k8s \
+  --network=vpc-k8s \
+  --range=172.24.0.0/24 \
+  --region=us-central1
+```
 
+### Create the zonal managed instance groups
+1. Create an instance template
+```
+gcloud compute instance-templates create control-plane-template \
+  --region=us-central1 \
+  --network=vpc-k8s \
+  --subnet=snet-k8s \
+  --stack-type=IPV4_ONLY \
+  --machine-type=e2-standard-2 \
+  --boot-disk-type=pd-balanced \
+  --tags=lb-tag \
+  --image-family=ubuntu-2404-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=20GB \
+  --metadata=enable-oslogin=TRUE
+```
+2. Create a managed instance group
+```
+gcloud compute instance-groups managed create instance-group-k8s \
+  --size 3 \
+  --template control-plane-template
+```
 
-| VIP Name | Private IP | Public IP | Potrs |
-|:-------- |:--------:| --------:| --------:|
-|  apiserver  |  172.16.144.92  | -  | 8443 => 6443 |
-|  workers  |  172.16.144.98  |  41.77.30.10 | 443 => 8443 / 80 => 8080 |
+### Configure firewall rules
+1. Allow IPv4 8443 traffic
+```
+gcloud compute firewall-rules create allow-network-lb-ipv4 \
+  --network=vpc-k8s \
+  --target-tags=lb-tag \
+  --allow=tcp:8443 \
+  --source-ranges=0.0.0.0/0
+```
+2. Allow IPv4 6443 traffic
+```
+gcloud compute firewall-rules create allow-network-lb-ipv4 \
+  --network=vpc-k8s \
+  --target-tags=lb-tag \
+  --allow=tcp:6443 \
+  --source-ranges=0.0.0.0/0
+```
+3. Allow IPv4 SSH and RDP traffic
+```
+gcloud compute firewall-rules create allow-network-lb-ipv4 \
+  --network=vpc-k8s \
+  --target-tags=lb-tag \
+  --allow=tcp:22,3389 \
+  --source-ranges=0.0.0.0/0
+```
 
-2. Network
+### Configure the load balancer
+1. Reserve a static external IP address
+```
+gcloud compute addresses create network-lb-ipv4 \
+  --region us-central1
+```
+2. Create a TCP health check.
+```
+gcloud compute health-checks create tcp tcp-health-check \
+  --region us-central1 \
+  --port 6443
+```
+3. Create a backend service
+```
+gcloud compute backend-services create network-lb-backend-service \
+  --protocol TCP \
+  --health-checks tcp-health-check \
+  --health-checks-region us-central1 \
+  --region us-central1
+```
+4. Add the instance groups to the backend service
+```
+gcloud compute backend-services add-backend network-lb-backend-service \
+  --instance-group instance-group-k8s \
+  --region us-central1
+```
+5. Create Frontend IPv4 and port
+```
+gcloud compute forwarding-rules create network-lb-frontend-ipv4 \
+  --load-balancing-scheme EXTERNAL \
+  --region us-central1 \
+  --ports 8443 \
+  --address network-lb-ipv4 \
+  --backend-service network-lb-backend-service
+```
 
-| Cluster | VLAN ID | VLAN CIDR | Opening Port |
-|:--------|:-------- |:--------:| --------:| 
-| Dev | Vlan 106     | 172.16.144.0/28  | 8443, 6443, 8080, 80 |
-
-3. DNS Resolution
-Record dns for vip: api.proxima.swap.io => 172.16.144.92
-
-3. Storage
-Comming soon ! 
-
-## Installation (bootstrap k8s cluster)
+## 🐳 Installation (bootstrap k8s cluster)
 ### Install prerequisites (install ubuntu package ; desable swap ; install modules ; configure iptables)
-#### Install ubuntu package
+1. Install packages
 ```
-apt-get update && apt-get upgrade -y
-apt-get install unzip tar apt-transport-https libseccomp2 util-linux ca-certificates curl gpg nfs-common -y
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install unzip tar apt-transport-https libseccomp2 util-linux ca-certificates curl gpg nfs-common -y
 ```
-#### Disable swap configuration
+2. Disable swap configuration
 ```
-swapoff -a
-sed -e '/swap/s/^/#/g' -i /etc/fstab
+sudo swapoff -a
+sudo sed -e '/swap/s/^/#/g' -i /etc/fstab
 ```
 
-#### Configure required modules
+3. Configure required modules
 ```
-cat <<EOF | tee /etc/modules-load.d/k8s.conf
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 overlay
 br_netfilter
 ip_vs
@@ -53,40 +131,44 @@ ip_vs_wrr
 ip_vs_sh
 EOF
 
-modprobe overlay
-modprobe br_netfilter
-modprobe ip_vs
-modprobe ip_vs_rr
-modprob ip_vs_wrr
-modprob ip_vs_sh
+sudo modprobe overlay
+sudo modprobe br_netfilter
+sudo modprobe ip_vs
+sudo modprobe ip_vs_rr
+sudo modprobe ip_vs_wrr
+sudo modprobe ip_vs_sh
 
-cat <<EOF | tee /etc/sysctl.d/k8s.conf
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
 EOF
 
-sysctl --system
+sudo sysctl --system
 ```
 
-### Local DNS
+4. DNS record (local DNS)
+On each VM name
 ```
-In /etc/hosts ; hostname -> IP address
+IPV4=$(hostname -I | awk '{print $1}')
+HOSTNAME=$(hostname -s)
+sudo echo "$IPV4 $HOSTNAME" >> /etc/hosts
 ```
-### Install and configure containerd runtime (1.7.30)
-```
-mkdir -p /opt/cni/bin/
-mkdir -p /etc/cni/net.d/
-mkdir -p /etc/containerd
 
-wget https://github.com/containerd/containerd/releases/download/v1.7.30/cri-containerd-cni-1.7.30-linux-amd64.tar.gz
-tar Cxzvf /opt/cni/bin/ cri-containerd-cni-1.7.30-linux-amd64.tar.gz
-rm -f cri-containerd-cni-1.7.30-linux-amd64.tar.gz
+5. Install and configure containerd runtime (1.7.30)
+```
+sudo mkdir -p /opt/cni/bin/
+sudo mkdir -p /etc/cni/net.d/
+sudo mkdir -p /etc/containerd
 
-systemctl daemon-reload
-systemctl start containerd
-systemctl enable containerd
-systemctl status containerd
+sudo wget https://github.com/containerd/containerd/releases/download/v1.7.30/cri-containerd-cni-1.7.30-linux-amd64.tar.gz
+sudo tar --no-overwrite-dir -C / -xzf cri-containerd-cni-1.7.30-linux-amd64.tar.gz
+sudo rm -f cri-containerd-cni-1.7.30-linux-amd64.tar.gz
+
+sudo systemctl daemon-reload
+sudo systemctl start containerd
+sudo systemctl enable containerd
+sudo systemctl status containerd
 
 cat <<EOF | sudo tee /etc/containerd/config.toml
 version = 2
@@ -101,66 +183,76 @@ imports = ["/etc/containerd/conf.d/*.toml"]
         SystemdCgroup = true
 EOF
 
-systemctl restart containerd
-systemctl status containerd
+sudo systemctl restart containerd
+sudo systemctl status containerd
 
 ```
 
-### Install kubernetes components binaire (Add dpkg packages on ubuntu and install)
+6. Install kubernetes components binaire (Add dpkg packages on ubuntu and install)
 ```
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-apt-get update
-apt-get install -y kubelet=1.31.5-1.1 kubeadm=1.31.5-1.1 kubectl=1.31.5-1.1
-apt-mark hold kubelet kubeadm kubectl
+sudo curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
 
 ```
 
-### Insert this line below with vi in /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf file after section [Service] (it's kubelet attributes parameters)
+7. Insert this line below with vi in /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf file after section [Service] (it's kubelet attributes parameters)
 ```
-Environment="KUBELET_EXTRA_ARGS= --runtime-cgroups=/system.slice/containerd.service --container-runtime=remote --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"
+sudo vi /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+```
+```
+Environment="KUBELET_EXTRA_ARGS=--runtime-cgroups=/system.slice/containerd.service --container-runtime=remote --runtime-request-timeout=15m --container-runtime-endpoint=unix:///run/containerd/containerd.sock"
 ```
 
 ### Install kubernetes
 #### Only on the first master
-##### Initialize cluster
+1. Initialize cluster
 ```
-mkdir /opt/kubernetes
+sudo mkdir /opt/kubernetes
 
 cat <<EOF | sudo tee /opt/kubernetes/kubeadm-config.yaml
 kind: ClusterConfiguration
 apiVersion: kubeadm.k8s.io/v1beta4
 clusterName: swap-sandbox
-kubernetesVersion: v1.31.5
+kubernetesVersion: v1.34.3
 apiServer:
   extraArgs:
     - name: "audit-log-path"
       value: "/var/log/kubernetes/audit/audit.log"
-  certSANs:
-    - "api.proxima.swap.io"
-    - "172.16.144.92" #vip-private ip
+    - name: "audit-log-maxage"
+      value: "30"
+    - name: "audit-log-maxbackup"
+      value: "3"
+    - name: "audit-log-maxsize"
+      value: "100"
 controllerManager:
   extraArgs:
-  - name: node-cidr-mask-size
-    value: "24"
+    - name: "cloud-provider"
+      value: "external"
+etcd:
+  local:
+    dataDir: /var/lib/etcd
 networking:
   serviceSubnet: "192.168.128.0/17"
   podSubnet: "192.168.0.0/17"
-controlPlaneEndpoint: "api.proxima.swap.io:8443"
+controlPlaneEndpoint: "<LB_PUBLIC_IP>:8443"
 
 ---
 
 kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
 cgroupDriver: systemd
-
 EOF
 
-kubeadm init --config /opt/kubernetes/kubeadm-config.yaml --skip-phases=addon/kube-proxy --upload-certs | tee /opt/kubernetes/kubeadm-init.out
-
+export export NODE_NAME=$(hostname -s)
+sudo kubeadm init --config /opt/kubernetes/kubeadm-config.yaml --skip-phases=addon/kube-proxy --upload-certs --node-name $NODE_NAME | sudo tee /opt/kubernetes/kubeadm-init.out
 ```
 
-##### Install cilium cni (version 1.18.5 with helm)
+2. Install cilium cni (version 1.18.5 with helm)
 ```
 wget https://get.helm.sh/helm-v3.17.0-linux-amd64.tar.gz
 tar -zxvf helm-v3.17.0-linux-amd64.tar.gz
@@ -176,7 +268,7 @@ helm install cilium cilium/cilium --version 1.18.5 \
 --set ipam.operator.clusterPoolIPv4MaskSize=24 \
 --namespace kube-system
 
-export API_SERVER_IP="api.proxima.swap.io"
+export API_SERVER_IP="<LB_PUBLIC_IP>"
 export API_SERVER_PORT="8443"
 
 helm upgrade --install cilium cilium/cilium --version 1.18.5 --namespace kube-system \
@@ -193,7 +285,7 @@ helm upgrade --install cilium cilium/cilium --version 1.18.5 --namespace kube-sy
 kubectl get pods --all-namespaces -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,HOSTNETWORK:.spec.hostNetwork --no-headers=true | grep '<none>' | awk '{print "-n "$1" "$2}' | xargs -L 1 -r kubectl delete pod
 ```
 
-##### Join master (connect to the second then the thirty master vm)
+3. Join master (connect to the second then the thirty master vm)
 | Variable | Description | Location | 
 |:--------|:-------- |:--------:| 
 | JOIN_TOKEN | Token to join the control plan  | /opt/kubernetes/kubeadm-init.out  | 
@@ -206,7 +298,7 @@ kubeadm join api.proxima.swap.io:8443 --token <JOIN_TOKEN> \
 --control-plane --certificate-key <JOIN_TOKEN_CERT_KEY>
 ```
 
-#### Join workers (connect on each worker and make the command below)
+4. Join workers (connect on each worker and make the command below)
 ```
 kubeadm join api.proxima.swap.io:8443 --token <JOIN_TOKEN> \
 --discovery-token-ca-cert-hash <JOIN_TOKEN_CACERT_HASH>

@@ -1,11 +1,24 @@
 # Deploy kubernetes cluster with kubeadm
+## 🏗️ Architecture
+![alt text](images/k8s-GCP.drawio.png)
+
 ## 🔧 Compute Charasteristic
 1. Compute
-| VM Name | VM IP | Roles | OS | CPU (vCPU) | RAM | Disk Storage | Openning Ports |
-|:-------- |:--------:| --------:| --------:| --------:| --------:| --------:|
-| master01 | 172.24.0.2  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
-| master02 | 172.24.0.3  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
-| master03 | 172.24.0.4  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
+- Master Node
+
+| VM Name | Subnet CIDR | VM IP | Roles | OS | CPU (vCPU) | RAM | Disk Storage | Openning Ports |
+|:-------- | :--------:| :--------:| --------:| --------:| --------:| --------:| --------:|:------:|
+| master01 | 172.24.0.0/24 | 172.24.0.2  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
+| master02 | 172.24.0.0/24 | 172.24.0.3  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
+| master03 | 172.24.0.0/24 | 172.24.0.4  | Control Plane  | Ubuntu24.04 LTS| 2 | 8 | 20Go | 6443, 2379-2380, 10250, 10259, 10257 |
+
+- Worker Node
+
+2. VIP
+
+| VIP Type | Public IP | External Port |
+|:---------|:--------:|:-----------:|
+| GCP Network LB| Dynamic Public IP | 8443|
 
 ## 🏗️ Setup Infrastructure
 ### Set up the network and subnets
@@ -14,7 +27,7 @@
 gcloud compute networks create vpc-k8s \
   --subnet-mode=custom
 ```
-2. create a subnet for backends
+2. create subnet for backends
 ```
 gcloud compute networks subnets create snet-k8s \
   --network=vpc-k8s \
@@ -152,7 +165,8 @@ On each VM name
 ```
 IPV4=$(hostname -I | awk '{print $1}')
 HOSTNAME=$(hostname -s)
-sudo echo "$IPV4 $HOSTNAME" >> /etc/hosts
+Add "$IPV4 $HOSTNAME" on
+sudo vi /etc/hosts
 ```
 
 5. Install and configure containerd runtime (1.7.30)
@@ -229,13 +243,13 @@ apiServer:
       value: "3"
     - name: "audit-log-maxsize"
       value: "100"
+  certSANs:
+    - <VM_PRIVATE_IP>
+    - <LB_PUBLIC_IP>
 controllerManager:
   extraArgs:
-    - name: "cloud-provider"
-      value: "external"
-etcd:
-  local:
-    dataDir: /var/lib/etcd
+    - name: node-cidr-mask-size
+      value: "24"
 networking:
   serviceSubnet: "192.168.128.0/17"
   podSubnet: "192.168.0.0/17"
@@ -249,7 +263,8 @@ cgroupDriver: systemd
 EOF
 
 export export NODE_NAME=$(hostname -s)
-sudo kubeadm init --config /opt/kubernetes/kubeadm-config.yaml --skip-phases=addon/kube-proxy --upload-certs --node-name $NODE_NAME | sudo tee /opt/kubernetes/kubeadm-init.out
+
+sudo kubeadm init --config /opt/kubernetes/kubeadm-config.yaml --skip-phases=addon/kube-proxy --upload-certs --node-name $NODE_NAME --v=5 | sudo tee /opt/kubernetes/kubeadm-init.out
 ```
 
 2. Install cilium cni (version 1.18.5 with helm)
@@ -286,6 +301,7 @@ kubectl get pods --all-namespaces -o custom-columns=NAMESPACE:.metadata.namespac
 ```
 
 3. Join master (connect to the second then the thirty master vm)
+
 | Variable | Description | Location | 
 |:--------|:-------- |:--------:| 
 | JOIN_TOKEN | Token to join the control plan  | /opt/kubernetes/kubeadm-init.out  | 
@@ -293,30 +309,84 @@ kubectl get pods --all-namespaces -o custom-columns=NAMESPACE:.metadata.namespac
 | JOIN_TOKEN_CERT_KEY | Token Certificat Key to join the control plan | /opt/kubernetes/kubeadm-init.out  | 
 
 ```
-kubeadm join api.proxima.swap.io:8443 --token <JOIN_TOKEN> \
+kubeadm join <LB_PUBLIC_IP>:8443 --token <JOIN_TOKEN> \
 --discovery-token-ca-cert-hash <JOIN_TOKEN_CACERT_HASH> \
 --control-plane --certificate-key <JOIN_TOKEN_CERT_KEY>
 ```
 
 4. Join workers (connect on each worker and make the command below)
 ```
-kubeadm join api.proxima.swap.io:8443 --token <JOIN_TOKEN> \
+kubeadm join <LB_PUBLIC_IP>:8443 --token <JOIN_TOKEN> \
 --discovery-token-ca-cert-hash <JOIN_TOKEN_CACERT_HASH>
 ```
 
-### Check Nodes status
+5. Check Nodes and pod status
 ```
 kubectl get node
-```
-
-### Check Pods
-```
 kubectl get pod -A
 ```
 
-### Check Cilium connectivity status
+6. Check Cilium connectivity status
 ```
 kubectl -n kube-system exec ds/cilium -- cilium-health status
 
 kubectl -n kube-system exec ds/cilium -- cilium-dbg status
+```
+
+## Troubleshooting kubernetes cluster
+1. Check control plane status
+```
+sudo crictl ps -a
+sudo crictl logs <CONTAINER_ID>
+sudo crictl --runtime-endpoint /var/run/crio/crio.sock ps -a | grep kube | grep -v pause
+crictl --runtime-endpoint /var/run/crio/crio.sock logs CONTAINERID
+```
+2. Check ETCD Healthy (Directly on the VM, or Inside the kube-api server, or etcd container)
+```
+ETCDCTL_API=3 etcdctl \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
+  --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
+  endpoint health
+```
+3. Check if the controle plane ports is not already used 
+```
+ss -lntp | grep 6443 
+ss -lntp | grep 2379
+```
+4. Check Openning port
+```
+nc -zv -w 3 <VM_PRIVATE_IP> 6443
+```
+5. Ensure that firewall system is deabled
+```
+sudo systemctl stop firewalld
+sudo sysctl -a | grep net
+sudo iptables -L
+```
+6. Check if resource (CPUn Memory) is enough
+```
+free -m
+nproc
+```
+7. Check container status
+```
+sudo systemctl status containerd
+```
+8. Check Journal and syslog
+```
+sudo journalctl -xeu kubelet
+sudo cat /var/logs/syslog
+```
+9. Check the kernel compatible
+```
+uname -r
+```
+10. Reset kubeadm configuration
+```
+kubeadm reset -f
+rm -rf /etc/kubernetes
+rm -rf /var/lib/etcd
+systemctl restart containerd
 ```

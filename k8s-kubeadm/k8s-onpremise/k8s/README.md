@@ -14,6 +14,11 @@
 
 - Worker Node
 
+| VM Name | Subnet CIDR | VM IP | Roles | OS | CPU (vCPU) | RAM | Disk Storage | 
+|:-------- | :--------:| :--------:| --------:| --------:| --------:| --------:| --------:|
+| worker01 | 172.24.0.0/24 | 172.24.0.6  | Worker Node  | Ubuntu24.04 LTS| 2 | 8 | 20Go |
+| worker02 | 172.24.0.0/24 | 172.24.0.7  | Worker Node  | Ubuntu24.04 LTS| 2 | 8 | 20Go |
+
 2. VIP
 
 | VIP Type | Public IP | External Port |
